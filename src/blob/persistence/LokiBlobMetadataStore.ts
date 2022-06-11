@@ -2219,7 +2219,8 @@ export default class LokiBlobMetadataStore
     const blobDoc = blobColl.findOne({
       accountName: block.accountName,
       containerName: block.containerName,
-      name: block.blobName
+      name: block.blobName,
+      snapshot: ""
     });
 
     let blobExist = false;
