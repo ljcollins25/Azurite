@@ -2262,6 +2262,7 @@ export default class LokiBlobMetadataStore
         accountName: block.accountName,
         containerName: block.containerName,
         blobName: block.blobName
+        snapshot: ""
       });
       if (existBlockDoc) {
         if (
@@ -2277,6 +2278,7 @@ export default class LokiBlobMetadataStore
       accountName: block.accountName,
       containerName: block.containerName,
       blobName: block.blobName,
+      snapshot: ""
       name: block.name,
       isCommitted: block.isCommitted
     });
