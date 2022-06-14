@@ -18,12 +18,30 @@ interface IServiceAdditionalProperties {
 export type ServicePropertiesModel = Models.TableServiceProperties &
   IServiceAdditionalProperties;
 
+// used by the query filter checking logic
+type TokenTuple = [string, TokenType];
+enum TokenType {
+  Unknown,
+  Identifier,
+  Comparisson,
+  LogicalOp,
+  Value,
+  Parens
+}
+
 export default class LokiTableMetadataStore implements ITableMetadataStore {
   private readonly db: Loki;
   private readonly TABLES_COLLECTION = "$TABLES_COLLECTION$";
   private readonly SERVICES_COLLECTION = "$SERVICES_COLLECTION$";
   private initialized: boolean = false;
   private closed: boolean = false;
+  // The Rollback Entities arrays hold the rows that we will reapply to the database in the case
+  // that we need to rollback a transaction.
+  // We make the assumption that there will not be any IO during the processing of a transaction
+  // and assume that the execution will remain in the same thread associated with the transaction.
+  // See: https://nodejs.org/en/docs/guides/event-loop-timers-and-nexttick/
+  private transactionRollbackTheseEntities: Entity[] = []; // can maybe use Entity instead of any
+  private transactionDeleteTheseEntities: Entity[] = []; // can maybe use Entity instead of any
 
   public constructor(public readonly lokiDBPath: string) {
     this.db = new Loki(lokiDBPath, {
@@ -106,9 +124,11 @@ export default class LokiTableMetadataStore implements ITableMetadataStore {
   public async createTable(context: Context, tableModel: Table): Promise<void> {
     // Check for table entry in the table registry collection
     const coll = this.db.getCollection(this.TABLES_COLLECTION);
+    // Azure Storage Service is case insensitive
+    tableModel.table = tableModel.table;
     const doc = coll.findOne({
       account: tableModel.account,
-      table: tableModel.table
+      table: { $regex: [String.raw`\b${tableModel.table}\b`, "i"] }
     });
 
     // If the metadata exists, we will throw getTableAlreadyExists error
@@ -142,9 +162,11 @@ export default class LokiTableMetadataStore implements ITableMetadataStore {
   ): Promise<void> {
     // remove table reference from collection registry
     const coll = this.db.getCollection(this.TABLES_COLLECTION);
+    // Azure Storage Service is case insensitive
+    const tableLower = table.toLocaleLowerCase();
     const doc = coll.findOne({
       account,
-      table
+      table: { $regex: [tableLower, "i"] }
     });
     if (doc) {
       coll.remove(doc);
@@ -152,7 +174,7 @@ export default class LokiTableMetadataStore implements ITableMetadataStore {
       throw StorageErrorFactory.ResourceNotFound(context);
     }
 
-    const tableCollectionName = this.getTableCollectionName(account, table);
+    const tableCollectionName = this.getTableCollectionName(account, doc.table);
     const tableEntityCollection = this.db.getCollection(tableCollectionName);
     if (tableEntityCollection) {
       this.db.removeCollection(tableCollectionName);
@@ -176,23 +198,38 @@ export default class LokiTableMetadataStore implements ITableMetadataStore {
     tableACL?: TableACL
   ): Promise<void> {
     const coll = this.db.getCollection(this.TABLES_COLLECTION);
-    const doc = coll.findOne({ account, table });
+    // Azure Storage Service is case insensitive
+    const tableLower = table.toLocaleLowerCase();
+    const persistedTable = coll.findOne({
+      account,
+      table: { $regex: [tableLower, "i"] }
+    });
 
-    if (!doc) {
+    if (!persistedTable) {
       throw StorageErrorFactory.getTableNotFound(context);
     }
 
-    doc.tableAcl = tableACL;
-    coll.update(doc);
+    persistedTable.tableAcl = tableACL;
+    coll.update(persistedTable);
   }
 
+  /**
+   * Gets a table from the loki js persistence layer.
+   *
+   * @param {string} account
+   * @param {string} table
+   * @param {Context} context
+   * @return {*}  {Promise<Table>}
+   * @memberof LokiTableMetadataStore
+   */
   public async getTable(
     account: string,
     table: string,
     context: Context
   ): Promise<Table> {
     const coll = this.db.getCollection(this.TABLES_COLLECTION);
-    const doc = coll.findOne({ account, table });
+    // Azure Storage Service is case insensitive
+    const doc = coll.findOne({ account, table: { $regex: [table, "i"] } });
     if (!doc) {
       throw StorageErrorFactory.getTableNotFound(context);
     }
@@ -246,23 +283,14 @@ export default class LokiTableMetadataStore implements ITableMetadataStore {
     context: Context,
     table: string,
     account: string,
-    entity: Entity
+    entity: Entity,
+    batchId?: string
   ): Promise<Entity> {
-    const tablesCollection = this.db.getCollection(this.TABLES_COLLECTION);
-    const tableDocument = tablesCollection.findOne({
+    const tableEntityCollection = this.getEntityCollection(
       account,
-      table
-    });
-    if (!tableDocument) {
-      throw StorageErrorFactory.getTableNotExist(context);
-    }
-
-    const tableEntityCollection = this.db.getCollection(
-      this.getTableCollectionName(account, table)
+      table,
+      context
     );
-    if (!tableEntityCollection) {
-      throw StorageErrorFactory.getTableNotExist(context);
-    }
 
     const doc = tableEntityCollection.findOne({
       PartitionKey: entity.PartitionKey,
@@ -275,8 +303,42 @@ export default class LokiTableMetadataStore implements ITableMetadataStore {
     entity.properties.Timestamp = getTimestampString(entity.lastModifiedTime);
     entity.properties["Timestamp@odata.type"] = "Edm.DateTime";
 
+    if (batchId !== "" && batchId !== undefined) {
+      this.transactionDeleteTheseEntities.push(entity);
+    }
     tableEntityCollection.insert(entity);
     return entity;
+  }
+
+  /**
+   * Gets the collection of entites for a specific table.
+   * Ensures that table name is case insensitive.
+   *
+   * @private
+   * @param {string} account
+   * @param {string} table
+   * @param {Context} context
+   * @return {*}  {Collection<any>}
+   * @memberof LokiTableMetadataStore
+   */
+  private getEntityCollection(
+    account: string,
+    table: string,
+    context: Context
+  ): Collection<any> {
+    let tableEntityCollection = this.db.getCollection(
+      this.getTableCollectionName(account, table.toLowerCase())
+    );
+    if (!tableEntityCollection) {
+      // this is to avoid a breaking change for users of persisted storage
+      tableEntityCollection = this.db.getCollection(
+        this.getTableCollectionName(account, table)
+      );
+      if (!tableEntityCollection) {
+        throw StorageErrorFactory.getTableNotExist(context);
+      }
+    }
+    return tableEntityCollection;
   }
 
   public async insertOrUpdateTableEntity(
@@ -284,9 +346,10 @@ export default class LokiTableMetadataStore implements ITableMetadataStore {
     table: string,
     account: string,
     entity: Entity,
-    ifMatch?: string
+    ifMatch?: string,
+    batchId?: string
   ): Promise<Entity> {
-    if (ifMatch === undefined) {
+    if (ifMatch === undefined || ifMatch === "*") {
       // Upsert
       const existingEntity =
         await this.queryTableEntitiesWithPartitionAndRowKey(
@@ -294,60 +357,35 @@ export default class LokiTableMetadataStore implements ITableMetadataStore {
           table,
           account,
           entity.PartitionKey,
-          entity.RowKey
+          entity.RowKey,
+          batchId
         );
 
       if (existingEntity) {
         // Update
-        return this.updateTableEntity(context, table, account, entity, ifMatch);
+        return this.updateTableEntity(
+          context,
+          table,
+          account,
+          entity,
+          ifMatch,
+          batchId
+        );
       } else {
         // Insert
-        return this.insertTableEntity(context, table, account, entity);
+        return this.insertTableEntity(context, table, account, entity, batchId);
       }
     } else {
       // Update
-      return this.updateTableEntity(context, table, account, entity, ifMatch);
+      return this.updateTableEntity(
+        context,
+        table,
+        account,
+        entity,
+        ifMatch,
+        batchId
+      );
     }
-
-    // const tablesCollection = this.db.getCollection(this.TABLES_COLLECTION);
-    // const tableDocument = tablesCollection.findOne({
-    //   account,
-    //   table
-    // });
-    // if (!tableDocument) {
-    //   throw StorageErrorFactory.getTableNotExist(context);
-    // }
-
-    // const tableEntityCollection = this.db.getCollection(
-    //   this.getTableCollectionName(account, table)
-    // );
-    // if (!tableEntityCollection) {
-    //   throw StorageErrorFactory.getTableNotExist(context);
-    // }
-
-    // const doc = tableEntityCollection.findOne({
-    //   PartitionKey: entity.PartitionKey,
-    //   RowKey: entity.RowKey
-    // }) as Entity;
-
-    // if (!doc) {
-    //   throw StorageErrorFactory.getEntityNotExist(context);
-    // } else {
-    //   // Test if etag value is valid
-    //   if (ifMatch === "*" || doc.eTag === ifMatch) {
-    //     tableEntityCollection.remove(doc);
-
-    //     entity.properties.Timestamp = getTimestampString(
-    //       entity.lastModifiedTime
-    //     );
-    //     entity.properties["Timestamp@odata.type"] = "Edm.DateTime";
-
-    //     tableEntityCollection.insert(entity);
-    //     return;
-    //   }
-    // }
-
-    // throw StorageErrorFactory.getPreconditionFailed(context);
   }
 
   public async insertOrMergeTableEntity(
@@ -355,9 +393,10 @@ export default class LokiTableMetadataStore implements ITableMetadataStore {
     table: string,
     account: string,
     entity: Entity,
-    ifMatch?: string
+    ifMatch?: string,
+    batchId?: string
   ): Promise<Entity> {
-    if (ifMatch === undefined) {
+    if (ifMatch === undefined || ifMatch === "*") {
       // Upsert
       const existingEntity =
         await this.queryTableEntitiesWithPartitionAndRowKey(
@@ -370,60 +409,39 @@ export default class LokiTableMetadataStore implements ITableMetadataStore {
 
       if (existingEntity) {
         // Merge
-        return this.mergeTableEntity(context, table, account, entity, ifMatch);
+        return this.mergeTableEntity(
+          context,
+          table,
+          account,
+          entity,
+          ifMatch,
+          batchId
+        );
       } else {
+        this.failPatchOnMissingEntity(context);
         // Insert
-        return this.insertTableEntity(context, table, account, entity);
+        return this.insertTableEntity(context, table, account, entity, batchId);
       }
     } else {
       // Merge
-      return this.mergeTableEntity(context, table, account, entity, ifMatch);
+      return this.mergeTableEntity(
+        context,
+        table,
+        account,
+        entity,
+        ifMatch,
+        batchId
+      );
     }
+  }
 
-    // const tablesCollection = this.db.getCollection(this.TABLES_COLLECTION);
-    // const tableDocument = tablesCollection.findOne({
-    //   account,
-    //   table
-    // });
-    // if (!tableDocument) {
-    //   throw StorageErrorFactory.getTableNotExist(context);
-    // }
-
-    // const tableEntityCollection = this.db.getCollection(
-    //   this.getTableCollectionName(account, table)
-    // );
-    // if (!tableEntityCollection) {
-    //   throw StorageErrorFactory.getTableNotExist(context);
-    // }
-
-    // const doc = tableEntityCollection.findOne({
-    //   PartitionKey: entity.PartitionKey,
-    //   RowKey: entity.RowKey
-    // }) as Entity;
-
-    // if (!doc) {
-    //   throw StorageErrorFactory.getEntityNotExist(context);
-    // } else {
-    //   // Test if etag value is valid
-    //   if (ifMatch === "*" || doc.eTag === ifMatch) {
-    //     const mergedDEntity: Entity = {
-    //       ...doc,
-    //       ...entity,
-    //       properties: {
-    //         // TODO: Validate incoming odata types
-    //         ...doc.properties,
-    //         ...entity.properties,
-    //         Timestamp: getTimestampString(entity.lastModifiedTime),
-    //         "Timestamp@odata.type": "Edm.DateTime"
-    //       },
-    //       lastModifiedTime: context.startTime!
-    //     };
-    //     tableEntityCollection.remove(doc);
-    //     tableEntityCollection.insert(mergedDEntity);
-    //     return mergedDEntity;
-    //   }
-    // }
-    // throw StorageErrorFactory.getPreconditionFailed(context);
+  private failPatchOnMissingEntity(context: Context) {
+    if (
+      context.context.request.req !== undefined &&
+      context.context.request.req.method === "PATCH"
+    ) {
+      throw StorageErrorFactory.ResourceNotFound(context);
+    }
   }
 
   public async deleteTableEntity(
@@ -432,23 +450,14 @@ export default class LokiTableMetadataStore implements ITableMetadataStore {
     account: string,
     partitionKey: string,
     rowKey: string,
-    etag: string
+    etag: string,
+    batchId: string
   ): Promise<void> {
-    const tablesCollection = this.db.getCollection(this.TABLES_COLLECTION);
-    const tableDocument = tablesCollection.findOne({
+    const tableEntityCollection = this.getEntityCollection(
       account,
-      table
-    });
-    if (!tableDocument) {
-      throw StorageErrorFactory.getTableNotExist(context);
-    }
-
-    const tableEntityCollection = this.db.getCollection(
-      this.getTableCollectionName(account, table)
+      table,
+      context
     );
-    if (!tableEntityCollection) {
-      throw StorageErrorFactory.getTableNotExist(context);
-    }
 
     if (partitionKey !== undefined && rowKey !== undefined) {
       const doc = tableEntityCollection.findOne({
@@ -463,7 +472,9 @@ export default class LokiTableMetadataStore implements ITableMetadataStore {
           throw StorageErrorFactory.getPreconditionFailed(context);
         }
       }
-
+      if (batchId !== "") {
+        this.transactionRollbackTheseEntities.push(doc);
+      }
       tableEntityCollection.remove(doc);
       return;
     }
@@ -479,21 +490,11 @@ export default class LokiTableMetadataStore implements ITableMetadataStore {
     nextPartitionKey?: string,
     nextRowKey?: string
   ): Promise<[Entity[], string | undefined, string | undefined]> {
-    const tablesCollection = this.db.getCollection(this.TABLES_COLLECTION);
-    const tableDocument = tablesCollection.findOne({
+    const tableEntityCollection = this.getEntityCollection(
       account,
-      table
-    });
-    if (!tableDocument) {
-      throw StorageErrorFactory.getTableNotExist(context);
-    }
-
-    const tableEntityCollection = this.db.getCollection(
-      this.getTableCollectionName(account, table)
+      table,
+      context
     );
-    if (!tableEntityCollection) {
-      throw StorageErrorFactory.getTableNotExist(context);
-    }
 
     let queryWhere;
     try {
@@ -506,8 +507,9 @@ export default class LokiTableMetadataStore implements ITableMetadataStore {
 
     // Decode the nextPartitionKey and nextRowKey. This is necessary since non-ASCII characters can
     // be in partition and row keys but should not be in headers.
-    const decodedNextPartitionKey = this.decodeContinuationHeader(nextPartitionKey)
-    const decodedNextRowKey = this.decodeContinuationHeader(nextRowKey)
+    const decodedNextPartitionKey =
+      this.decodeContinuationHeader(nextPartitionKey);
+    const decodedNextRowKey = this.decodeContinuationHeader(nextRowKey);
 
     // .find using a segment filter is not filtering in the same way that the sorting function sorts
     // I think offset will cause more problems than it solves, as we will have to step and sort all
@@ -557,7 +559,9 @@ export default class LokiTableMetadataStore implements ITableMetadataStore {
 
     if (result.length > maxResults) {
       const tail = result.pop();
-      nextPartitionKeyResponse = this.encodeContinuationHeader(tail.PartitionKey);
+      nextPartitionKeyResponse = this.encodeContinuationHeader(
+        tail.PartitionKey
+      );
       nextRowKeyResponse = this.encodeContinuationHeader(tail.RowKey);
     }
 
@@ -566,13 +570,13 @@ export default class LokiTableMetadataStore implements ITableMetadataStore {
 
   private decodeContinuationHeader(input?: string) {
     if (input !== undefined) {
-      return Buffer.from(input, 'base64').toString('utf8')
+      return Buffer.from(input, "base64").toString("utf8");
     }
   }
 
   private encodeContinuationHeader(input?: string) {
     if (input !== undefined) {
-      return Buffer.from(input, 'utf8').toString('base64')
+      return Buffer.from(input, "utf8").toString("base64");
     }
   }
 
@@ -581,19 +585,11 @@ export default class LokiTableMetadataStore implements ITableMetadataStore {
     table: string,
     account: string,
     partitionKey: string,
-    rowKey: string
+    rowKey: string,
+    batchId?: string
   ): Promise<Entity | undefined> {
-    const tableColl = this.db.getCollection(
-      this.getTableCollectionName(account, table)
-    );
-
-    // Throw error, if table not exists
-    if (!tableColl) {
-      throw StorageErrorFactory.getTableNotExist(context);
-    }
-
-    // Get requested Doc
-    const requestedDoc = tableColl.findOne({
+    const entityCollection = this.getEntityCollection(account, table, context);
+    const requestedDoc = entityCollection.findOne({
       PartitionKey: partitionKey,
       RowKey: rowKey
     }) as Entity;
@@ -622,23 +618,14 @@ export default class LokiTableMetadataStore implements ITableMetadataStore {
     table: string,
     account: string,
     entity: Entity,
-    ifMatch?: string
+    ifMatch?: string,
+    batchId?: string
   ): Promise<Entity> {
-    const tablesCollection = this.db.getCollection(this.TABLES_COLLECTION);
-    const tableDocument = tablesCollection.findOne({
+    const tableEntityCollection = this.getEntityCollection(
       account,
-      table
-    });
-    if (!tableDocument) {
-      throw StorageErrorFactory.getTableNotExist(context);
-    }
-
-    const tableEntityCollection = this.db.getCollection(
-      this.getTableCollectionName(account, table)
+      table,
+      context
     );
-    if (!tableEntityCollection) {
-      throw StorageErrorFactory.getTableNotExist(context);
-    }
 
     const doc = tableEntityCollection.findOne({
       PartitionKey: entity.PartitionKey,
@@ -647,6 +634,9 @@ export default class LokiTableMetadataStore implements ITableMetadataStore {
 
     if (!doc) {
       throw StorageErrorFactory.getEntityNotFound(context);
+    }
+    if (batchId !== "") {
+      this.transactionRollbackTheseEntities.push(doc);
     }
 
     // Test if etag value is valid
@@ -677,23 +667,14 @@ export default class LokiTableMetadataStore implements ITableMetadataStore {
     table: string,
     account: string,
     entity: Entity,
-    ifMatch?: string
+    ifMatch?: string,
+    batchId?: string
   ): Promise<Entity> {
-    const tablesCollection = this.db.getCollection(this.TABLES_COLLECTION);
-    const tableDocument = tablesCollection.findOne({
+    const tableEntityCollection = this.getEntityCollection(
       account,
-      table
-    });
-    if (!tableDocument) {
-      throw StorageErrorFactory.getTableNotExist(context);
-    }
-
-    const tableEntityCollection = this.db.getCollection(
-      this.getTableCollectionName(account, table)
+      table,
+      context
     );
-    if (!tableEntityCollection) {
-      throw StorageErrorFactory.getTableNotExist(context);
-    }
 
     const doc = tableEntityCollection.findOne({
       PartitionKey: entity.PartitionKey,
@@ -703,9 +684,12 @@ export default class LokiTableMetadataStore implements ITableMetadataStore {
     if (!doc) {
       throw StorageErrorFactory.getEntityNotFound(context);
     }
+    if (batchId !== "") {
+      this.transactionRollbackTheseEntities.push(doc);
+    }
 
     // if match is URL encoded from the clients, match URL encoding
-    // this does not always seem to be consisten...
+    // this does not always seem to be consistent...
     const encodedEtag = doc.eTag.replace(":", "%3A").replace(":", "%3A");
     let encodedIfMatch: string | undefined;
     if (ifMatch !== undefined) {
@@ -834,7 +818,7 @@ export default class LokiTableMetadataStore implements ITableMetadataStore {
       } else if (query[i] === "(" || query[i] === ")") {
         if (
           (i !== 0 &&
-            (query[i - 1].match(/\d/) !== null ||
+            (query[i - 1].match(/\S/) !== null ||
               (i >= 5 && query.slice(i - 5, i) === " true") ||
               (i >= 6 && query.slice(i - 6, i) === " false"))) ||
           query.substring(tokenStart, i).match(/\b[0-9]+L\b/g) != null
@@ -907,11 +891,6 @@ export default class LokiTableMetadataStore implements ITableMetadataStore {
 
     const transformedQuery = LokiTableMetadataStore.transformEntityQuery(query);
 
-    // tslint:disable-next-line: no-console
-    // console.log(query);
-    // tslint:disable-next-line: no-console
-    // console.log(transformedQuery);
-
     return new Function("item", transformedQuery) as any;
   }
 
@@ -945,21 +924,39 @@ export default class LokiTableMetadataStore implements ITableMetadataStore {
     let isOp = false;
     let previousIsOp = false;
     const tokens = LokiTableMetadataStore.tokenizeQuery(query);
+
+    const tokenTuples: TokenTuple[] = [];
+    for (const token of tokens) {
+      tokenTuples.push([token, TokenType.Unknown]);
+    }
     let counter = -1;
-    for (let token of tokens) {
+    for (const token of tokenTuples) {
       counter++;
-      if (token === "") {
+      if (token[0] === "") {
         continue;
       }
-
+      if (token[0].match(/\b\d+/)) {
+        token[1] = TokenType.Value;
+      }
       previousIsOp = isOp;
-      isOp = ["===", ">", ">=", "<", "<=", "!=="].includes(token);
-
+      isOp = ["===", ">", ">=", "<", "<=", "!=="].includes(token[0]);
+      if (isOp) {
+        token[1] = TokenType.LogicalOp;
+      }
+      if ([")", "("].includes(token[0])) {
+        token[1] = TokenType.Parens;
+      }
+      if (["&&", "||"].includes(token[0])) {
+        token[1] = TokenType.Comparisson;
+      }
+      if (["`", "'", '"'].includes(token[0].charAt(0))) {
+        token[1] = TokenType.Value;
+      }
       if (
-        !token.match(/\b\d+/) &&
-        token !== "true" &&
-        token !== "false" &&
-        !token.includes("`") &&
+        !token[0].match(/\b\d+/) &&
+        token[0] !== "true" &&
+        token[0] !== "false" &&
+        !token[0].includes("`") &&
         ![
           "===",
           ">",
@@ -972,19 +969,22 @@ export default class LokiTableMetadataStore implements ITableMetadataStore {
           "!",
           "(",
           ")"
-        ].includes(token)
+        ].includes(token[0])
       ) {
-        if (systemProperties.has(token)) {
-          transformedQuery += `item.${systemProperties.get(token)} `;
+        if (systemProperties.has(token[0])) {
+          transformedQuery += `item.${systemProperties.get(token[0])} `;
+          token[1] = TokenType.Identifier;
         } else if (allowCustomProperties) {
           // Datetime compare
           if (
             counter + 2 <= tokens.length - 1 &&
             tokens[counter + 2].startsWith("datetime")
           ) {
-            transformedQuery += `new Date(item.properties.${token}).getTime() `;
+            transformedQuery += `new Date(item.properties.${token[0]}).getTime() `;
+            token[1] = TokenType.Identifier;
           } else {
-            transformedQuery += `item.properties.${token} `;
+            transformedQuery += `item.properties.${token[0]} `;
+            token[1] = TokenType.Identifier;
           }
         } else {
           throw Error(
@@ -994,29 +994,35 @@ export default class LokiTableMetadataStore implements ITableMetadataStore {
       } else {
         // Remove "L" from long int
         // 2039283L ==> 2039283
-        const matchLongInt = token.match(/\b[0-9]*L\b/g);
+        const matchLongInt = token[0].match(/\b[0-9]*L\b/g);
         if (
           previousIsOp &&
           matchLongInt !== null &&
           matchLongInt.length === 1
         ) {
-          token = token.replace(/L\b/g, "");
+          const newtoken = token[0].slice(0, token[0].length - 1);
           // however, as long int is stored as string, we need to add inverted commas
-          token = "'" + token + "'";
-        } else if (previousIsOp && token.startsWith("datetime")) {
-          token = token.replace(/\bdatetime\b/g, "");
-          token = `new Date(${token}).getTime()`;
+          token[0] = "'" + newtoken + "'";
+          token[1] = TokenType.Value;
+        } else if (previousIsOp && token[0].startsWith("datetime")) {
+          token[0] = token[0].replace(/\bdatetime\b/g, "");
+          token[0] = `new Date(${token[0]}).getTime()`;
+          token[1] = TokenType.Value;
         } else if (
           previousIsOp &&
-          (token.startsWith("X") || token.startsWith("binary"))
+          (token[0].startsWith("X") || token[0].startsWith("binary"))
         ) {
           throw Error("Binary filter is not supported yet.");
         }
 
-        transformedQuery += `${token} `;
+        transformedQuery += `${token[0]} `;
       }
     }
     transformedQuery += ")";
+
+    // we need to validate that the filter has some valide predicate logic
+    // simply we check if we have sequence identifier > op > value through the tokens
+    validatePredicateSequence(tokenTuples);
 
     return transformedQuery;
   }
@@ -1084,5 +1090,110 @@ export default class LokiTableMetadataStore implements ITableMetadataStore {
     } else {
       return coll.insert(serviceProperties);
     }
+  }
+
+  public async beginBatchTransaction(batchId: string): Promise<void> {
+    // instead of copying all entities / rows in the collection,
+    // we shall just backup those rows that we change
+    // Keeping the batchId in the interface to allow logging scenarios to extend
+    if (
+      this.transactionRollbackTheseEntities.length > 0 ||
+      this.transactionDeleteTheseEntities.length > 0
+    ) {
+      throw new Error("Transaction Overlapp!");
+    }
+  }
+
+  public async endBatchTransaction(
+    account: string,
+    table: string,
+    batchId: string,
+    context: Context,
+    succeeded: boolean
+  ): Promise<void> {
+    // rollback all changes in the case of failed batch transaction
+    if (!succeeded) {
+      const tableBatchCollection = this.db.getCollection(
+        this.getTableCollectionName(account, table)
+      );
+      if (tableBatchCollection) {
+        // for entities deleted or modified
+        for (const entity of this.transactionRollbackTheseEntities) {
+          const copiedEntity: Entity = {
+            PartitionKey: entity.PartitionKey,
+            RowKey: entity.RowKey,
+            properties: entity.properties,
+            lastModifiedTime: entity.lastModifiedTime,
+            eTag: entity.eTag
+          };
+          // lokijs applies this insert as an upsert
+          const doc = tableBatchCollection.findOne({
+            PartitionKey: entity.PartitionKey,
+            RowKey: entity.RowKey
+          });
+          // we can't rely on upsert behavior if documents already exist
+          if (doc) {
+            tableBatchCollection.remove(doc);
+          }
+          tableBatchCollection.insert(copiedEntity);
+        }
+
+        // for entities added to the collection
+        for (const deleteRow of this.transactionDeleteTheseEntities) {
+          tableBatchCollection.remove(deleteRow);
+        }
+      }
+    }
+    // reset entity rollback trackers
+    this.transactionRollbackTheseEntities = [];
+    this.transactionDeleteTheseEntities = [];
+  }
+}
+
+/**
+ * Checks that a filter expression conforms to a minimum predicate
+ * style logic.
+ * It is easier to follow the predicate test logic like this than to
+ * manage a state machine during the creation of the query function.
+ * Should we continue to have to support more complex query validation
+ * we shall implement a query validation state machine.
+ *
+ * @param {string[]} tokens
+ */
+function validatePredicateSequence(tokens: TokenTuple[]) {
+  if (tokens.length < 3) {
+    throw Error("Invalid filter string detected!");
+  }
+  let foundPredicate: boolean = false;
+  let state: TokenType = TokenType.Unknown;
+  let lastState: TokenType = tokens[0][1];
+  // base case for duplicated token types
+  for (let i = 1; i < tokens.length; i++) {
+    state = tokens[i][1];
+    if (state === TokenType.LogicalOp) {
+      foundPredicate = true;
+    }
+    if (
+      state !== TokenType.Unknown &&
+      state !== TokenType.Parens &&
+      state === lastState
+    ) {
+      throw Error("Invalid filter string detected!");
+    }
+    if (lastState === TokenType.Comparisson && state === TokenType.Value) {
+      throw Error("Invalid token after comparisson operator");
+    }
+    if (
+      lastState === TokenType.Value &&
+      state !== TokenType.Unknown &&
+      state !== TokenType.Parens &&
+      state !== TokenType.Comparisson
+    ) {
+      throw Error("Invalid token after value");
+    }
+    lastState = state;
+  }
+  if (foundPredicate === false) {
+    throw Error("No predicate clause found");
   }
 }

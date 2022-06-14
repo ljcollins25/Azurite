@@ -9,21 +9,23 @@ import { configLogger } from "../../../src/common/Logger";
 import TableConfiguration from "../../../src/table/TableConfiguration";
 import TableServer from "../../../src/table/TableServer";
 import { getUniqueName } from "../../testutils";
+import { createUniquePartitionKey } from "../utils/table.entity.test.utils";
 import {
   getToAzurite,
+  patchToAzurite,
   postToAzurite
-} from "./table.entity.tests.rest.submitter";
+} from "../utils/table.entity.tests.rest.submitter";
 
 // Set true to enable debug log
 configLogger(false);
 
-describe("table Entity APIs test", () => {
+describe("table Entity APIs REST tests", () => {
   // TODO: Create a server factory as tests utils
   const host = "127.0.0.1";
   const port = 11002;
   const metadataDbPath = "__tableTestsStorage__";
   const enableDebugLog: boolean = true;
-  const debugLogPath: string = "g:/debug.log";
+  const debugLogPath: string = "";
   const config = new TableConfiguration(
     host,
     port,
@@ -79,9 +81,7 @@ describe("table Entity APIs test", () => {
       "x-ms-client-request-id": "127b472c-6db3-4de7-bdb7-4947314e77c0",
       accept: "application/json;odata=nometadata",
       "content-type":
-        "multipart/mixed; boundary=batch_4689afd3-e4e1-4966-9aeb-2bdb8d16cba7",
-      host: "127.0.0.1:10002",
-      "content-length": "6803"
+        "multipart/mixed; boundary=batch_4689afd3-e4e1-4966-9aeb-2bdb8d16cba7"
     };
     const request1Result = await postToAzurite(
       "$batch",
@@ -97,8 +97,7 @@ describe("table Entity APIs test", () => {
         "user-agent": "ResourceStack/6.0.0.1260",
         "x-ms-version": "2018-03-28",
         "x-ms-client-request-id": "7bbeb6b2-a1c7-4fed-8a3c-80f6b3e7db8c",
-        accept: "application/json;odata=minimalmetadata",
-        host: "127.0.0.1:10002"
+        accept: "application/json;odata=minimalmetadata"
       }
     );
     assert.strictEqual(request2Result.status, 200);
@@ -109,8 +108,7 @@ describe("table Entity APIs test", () => {
         "user-agent": "ResourceStack/6.0.0.1260",
         "x-ms-version": "2018-03-28",
         "x-ms-client-request-id": "41eb727e-1f85-4f53-b4e1-2df2628b2903",
-        accept: "application/json;odata=minimalmetadata",
-        host: "127.0.0.1:10002"
+        accept: "application/json;odata=minimalmetadata"
       }
     );
     assert.strictEqual(request3Result.status, 200);
@@ -127,9 +125,7 @@ describe("table Entity APIs test", () => {
         "x-ms-client-request-id": "f2503371-15c7-4314-9803-81ea69f1ca72",
         accept: "application/json;odata=nometadata",
         "content-type":
-          "multipart/mixed; boundary=batch_3e8c6583-146e-4326-835f-5f7321fc6711",
-        host: "127.0.0.1:10002",
-        "content-length": "6865"
+          "multipart/mixed; boundary=batch_3e8c6583-146e-4326-835f-5f7321fc6711"
       }
     );
     // we submitted the batch OK
@@ -141,8 +137,7 @@ describe("table Entity APIs test", () => {
         "user-agent": "ResourceStack/6.0.0.1260",
         "x-ms-version": "2018-03-28",
         "x-ms-client-request-id": "ceceedd3-4d7c-450f-a738-b83b21788d42",
-        accept: "application/json;odata=minimalmetadata",
-        host: "127.0.0.1:10002"
+        accept: "application/json;odata=minimalmetadata"
       }
     );
     assert.strictEqual(request5Result.status, 200);
@@ -153,8 +148,7 @@ describe("table Entity APIs test", () => {
         "user-agent": "ResourceStack/6.0.0.1260",
         "x-ms-version": "2018-03-28",
         "x-ms-client-request-id": "ceceedd3-4d7c-450f-a738-b83b21788d42",
-        accept: "application/json;odata=minimalmetadata",
-        host: "127.0.0.1:10002"
+        accept: "application/json;odata=minimalmetadata"
       }
     );
     assert.strictEqual(request6Result.status, 200);
@@ -170,8 +164,7 @@ describe("table Entity APIs test", () => {
         "user-agent": "ResourceStack/6.0.0.1260",
         "x-ms-version": "2018-03-28",
         "x-ms-client-request-id": "00000000-4d7c-450f-a738-b83b21788d42",
-        accept: "application/json;odata=minimalmetadata",
-        host: "127.0.0.1:10002"
+        accept: "application/json;odata=minimalmetadata"
       }
     );
     assert.strictEqual(requestTestFlowResult.status, 200);
@@ -186,8 +179,7 @@ describe("table Entity APIs test", () => {
         "user-agent": "ResourceStack/6.0.0.1260",
         "x-ms-version": "2018-03-28",
         "x-ms-client-request-id": "00000001-4d7c-450f-a738-b83b21788d42",
-        accept: "application/json;odata=minimalmetadata",
-        host: "127.0.0.1:10002"
+        accept: "application/json;odata=minimalmetadata"
       }
     );
     assert.strictEqual(request6Result.status, 200);
@@ -214,9 +206,7 @@ describe("table Entity APIs test", () => {
         "x-ms-client-request-id": "41aef06f-9443-497e-b192-216ae988549b",
         "content-type":
           "multipart/mixed; boundary=batch_558d985f-491c-496d-b4a2-311c3e1e075d",
-        accept: "application/json;odata=nometadata",
-        host: "127.0.0.1:10002",
-        "content-length": "1120"
+        accept: "application/json;odata=nometadata"
       }
     );
     // we submitted the batch OK
@@ -230,8 +220,7 @@ describe("table Entity APIs test", () => {
         "user-agent": "ResourceStack/6.0.0.1260",
         "x-ms-version": "2018-03-28",
         "x-ms-client-request-id": "00000002-4d7c-450f-a738-b83b21788d42",
-        accept: "application/json;odata=minimalmetadata",
-        host: "127.0.0.1:10002"
+        accept: "application/json;odata=minimalmetadata"
       }
     ).catch((getErr) => {
       assert.strictEqual(getErr.response.status, 404);
@@ -272,8 +261,302 @@ describe("table Entity APIs test", () => {
     );
 
     assert.strictEqual(patchRequestResult.status, 202);
-    const weMerged = patchRequestResult.data.match("HTTP/1.1 204 No Content")
-      .length;
+    // we expect this to fail, as our batch request specifies the etag
+    // https://docs.microsoft.com/en-us/rest/api/storageservices/merge-entity
+    const weMerged = patchRequestResult.data.match(
+      "HTTP/1.1 404 Not Found"
+    ).length;
     assert.strictEqual(weMerged, 1);
+  });
+
+  it("Should be able to use query based on partition and row key in a batch request, @loki", async () => {
+    const body = JSON.stringify({
+      TableName: reproFlowsTableName
+    });
+    const createTableHeaders = {
+      "Content-Type": "application/json",
+      Accept: "application/json;odata=nometadata"
+    };
+    const createTableResult = await postToAzurite(
+      "Tables",
+      body,
+      createTableHeaders
+    );
+    assert.strictEqual(createTableResult.status, 201);
+
+    const batchWithQueryRequestString = `--batch_f351702c-c8c8-48c6-af2c-91b809c651ce\r\nContent-Type: application/http\r\nContent-Transfer-Encoding: binary\r\n\r\nGET http://127.0.0.1:10002/devstoreaccount1/${reproFlowsTableName}(PartitionKey=\'Channel_19',RowKey='2') HTTP/1.1\r\nAccept: application/json;odata=minimalmetadata\r\n--batch_f351702c-c8c8-48c6-af2c-91b809c651ce--\r\n`;
+
+    const queryRequestResult = await postToAzurite(
+      `$batch`,
+      batchWithQueryRequestString,
+      {
+        version: "2019-02-02",
+        options: {
+          requestId: "5c43f514-9598-421a-a8d3-7b55a08a10c9",
+          dataServiceVersion: "3.0"
+        },
+        multipartContentType:
+          "multipart/mixed; boundary=batch_f351702c-c8c8-48c6-af2c-91b809c651ce"
+      }
+    );
+
+    assert.strictEqual(queryRequestResult.status, 202);
+    // we expect this to fail, as our batch request specifies the etag
+    // https://docs.microsoft.com/en-us/rest/api/storageservices/merge-entity
+    const weMerged = queryRequestResult.data.match(
+      "HTTP/1.1 404 Not Found"
+    ).length;
+    assert.strictEqual(weMerged, 1);
+  });
+
+  it("Should not be able to use query enties in a batch request, @loki", async () => {
+    const body = JSON.stringify({
+      TableName: reproFlowsTableName
+    });
+    const createTableHeaders = {
+      "Content-Type": "application/json",
+      Accept: "application/json;odata=nometadata"
+    };
+    const createTableResult = await postToAzurite(
+      "Tables",
+      body,
+      createTableHeaders
+    );
+    assert.strictEqual(createTableResult.status, 201);
+
+    const batchWithQueryRequestString = `--batch_f351702c-c8c8-48c6-af2c-91b809c651ce\r\nContent-Type: application/http\r\nContent-Transfer-Encoding: binary\r\n\r\nGET http://127.0.0.1:10002/devstoreaccount1/${reproFlowsTableName}()? HTTP/1.1\r\nAccept: application/json;odata=minimalmetadata\r\n--batch_f351702c-c8c8-48c6-af2c-91b809c651ce--\r\n`;
+
+    const queryRequestResult = await postToAzurite(
+      `$batch`,
+      batchWithQueryRequestString,
+      {
+        version: "2019-02-02",
+        options: {
+          requestId: "5c43f514-9598-421a-a8d3-7b55a08a10c9",
+          dataServiceVersion: "3.0"
+        },
+        multipartContentType:
+          "multipart/mixed; boundary=batch_f351702c-c8c8-48c6-af2c-91b809c651ce"
+      }
+    );
+
+    assert.strictEqual(queryRequestResult.status, 202);
+    // we expect this to fail, as we are using query entities inside the batch
+    const notImplemented = queryRequestResult.data.match(
+      "The requested operation is not implemented"
+    ).length;
+    assert.strictEqual(
+      notImplemented,
+      1,
+      "We did not get the expected NotImplemented error."
+    );
+  });
+
+  it("Upsert with wrong etag should fail in batch request, @loki", async () => {
+    const body = JSON.stringify({
+      TableName: reproFlowsTableName
+    });
+    const createTableHeaders = {
+      "Content-Type": "application/json",
+      Accept: "application/json;odata=nometadata"
+    };
+    const createTableResult = await postToAzurite(
+      "Tables",
+      body,
+      createTableHeaders
+    );
+    assert.strictEqual(createTableResult.status, 201);
+
+    const createEntityHeaders = {
+      "Content-Type": "application/json",
+      Accept: "application/json;odata=fullmetadata"
+    };
+    const partitionKey = createUniquePartitionKey();
+    const rowKey = "RK";
+    // first create entity to overwrite
+    const createEntityResult = await postToAzurite(
+      reproFlowsTableName,
+      `{"PartitionKey":"${partitionKey}","RowKey":"${rowKey}","Value":"01"}`,
+      createEntityHeaders
+    );
+
+    assert.strictEqual(
+      createEntityResult.status,
+      201,
+      "We failed to create the entity to be later upserted using Rest"
+    );
+
+    const headers = createEntityResult.headers;
+    assert.notStrictEqual(
+      headers.etag,
+      undefined,
+      "We did not get an Etag that we need for our test!"
+    );
+
+    const upsertBatchRequest = `--batch_adc25243-680a-46d2-bf48-0c112b5e8079\r\nContent-Type: multipart/mixed; boundary=changeset_b616f3c3-99ac-4bf7-8053-94b423345207\r\n\r\n--changeset_b616f3c3-99ac-4bf7-8053-94b423345207\r\nContent-Type: application/http\r\nContent-Transfer-Encoding: binary\r\n\r\nPUT http://127.0.0.1:10002/devstoreaccount1/${reproFlowsTableName}(PartitionKey=\'${partitionKey}\',RowKey=\'${rowKey}\')?$format=application%2Fjson%3Bodata%3Dminimalmetadata HTTP/1.1\r\nHost: 127.0.0.1\r\nx-ms-version: 2019-02-02\r\nDataServiceVersion: 3.0\r\nIf-Match: W/"datetime\'2022-02-23T07%3A21%3A33.9580000Z\'"\r\nAccept: application/json\r\nContent-Type: application/json\r\n\r\n{"PartitionKey":"${partitionKey}","RowKey":"${rowKey}"}\r\n--changeset_b616f3c3-99ac-4bf7-8053-94b423345207--\r\n\r\n--batch_adc25243-680a-46d2-bf48-0c112b5e8079--\r\n`;
+    const upsertBatchHeaders = {
+      version: "2019-02-02",
+      options: {
+        requestId: "38c433f9-5af4-4890-8082-d1380605ed8e",
+        dataServiceVersion: "3.0"
+      },
+      multipartContentType:
+        "multipart/mixed; boundary=batch_adc25243-680a-46d2-bf48-0c112b5e8079"
+    };
+
+    try {
+      const upsertBatchResult = await postToAzurite(
+        "$batch",
+        upsertBatchRequest,
+        upsertBatchHeaders
+      );
+
+      assert.strictEqual(upsertBatchResult.status, 202, "Batch Upsert Failed.");
+      assert.strictEqual(
+        upsertBatchResult.data.match(/\s412\sPrecondition\sFailed/).length,
+        1,
+        "Did not get the expected error in batch response."
+      );
+    } catch (upsertError: any) {
+      assert.strictEqual(
+        upsertError.response.status,
+        202,
+        "Batch request failed."
+      );
+    }
+  });
+
+  // validation based on:
+  // https://docs.microsoft.com/en-us/rest/api/storageservices/Understanding-the-Table-Service-Data-Model#characters-disallowed-in-key-fields
+  it("Should not accept invalid characters in partitionkey or rowKey, @loki", async () => {
+    reproFlowsTableName = getUniqueName("keyvalidation");
+    const body = JSON.stringify({
+      TableName: reproFlowsTableName
+    });
+    const createTableHeaders = {
+      "Content-Type": "application/json",
+      Accept: "application/json;odata=nometadata"
+    };
+    const createTableResult = await postToAzurite(
+      "Tables",
+      body,
+      createTableHeaders
+    );
+    assert.strictEqual(createTableResult.status, 201);
+
+    const invalidKeyRequests: string[] = [
+      '{"PartitionKey":"doNotAllow/ForwardSlash","RowKey":"1","value":"val1"}',
+      '{"PartitionKey":"1","RowKey":"doNotAllow/ForwardSlash","value":"val1"}',
+      '{"PartitionKey":"doNotAllow#hash","RowKey":"1","value":"val1"}',
+      '{"PartitionKey":"1","RowKey":"doNotAllow#hash","value":"val1"}',
+      '{"PartitionKey":"doNotAllow?questionmark","RowKey":"1","value":"val1"}',
+      '{"PartitionKey":"1","RowKey":"doNotAllow?questionmark","value":"val1"}',
+      '{"PartitionKey":"doNotAllow\\backslash","RowKey":"1","value":"val1"}'
+    ];
+    // need to test u0000 to u001f and u007f to u009f
+    for (let i = 0x0; i <= 0x1f; i++) {
+      invalidKeyRequests.push(
+        `{"PartitionKey":"doNotAllow-\\u${i
+          .toString(16)
+          .padStart(4, "0")
+          .toUpperCase()}unicodecontrol","RowKey":"1","value":"val1"}`
+      );
+      invalidKeyRequests.push(
+        `{"PartitionKey":"1","RowKey":"doNotAllow-\\u${i
+          .toString(16)
+          .padStart(4, "0")
+          .toUpperCase()}unicodecontrol","value":"val1"}`
+      );
+    }
+    for (let i = 0x007f; i <= 0x9f; i++) {
+      invalidKeyRequests.push(
+        `{"PartitionKey":"doNotAllow-\\u${i
+          .toString(16)
+          .padStart(4, "0")
+          .toUpperCase()}unicodecontrol","RowKey":"1","value":"val1"}`
+      );
+      invalidKeyRequests.push(
+        `{"PartitionKey":"1","RowKey":"doNotAllow-\\u${i
+          .toString(16)
+          .padStart(4, "0")
+          .toUpperCase()}unicodecontrol","value":"val1"}`
+      );
+    }
+
+    for (const invalidKeyRequest of invalidKeyRequests) {
+      try {
+        const queryRequestResult = await postToAzurite(
+          reproFlowsTableName,
+          invalidKeyRequest,
+          {
+            "x-ms-version": "2019-02-02",
+            "x-ms-client-request-id": "req1",
+            "Content-Type": "application/json",
+            Accept: "application/json;odata=nometadata"
+          }
+        );
+
+        // we expect this to fail, as we are using an invalid key,
+        // and this should jump to the catch block
+        assert.strictEqual(queryRequestResult.status, 400);
+      } catch (err: any) {
+        if (err.response !== undefined) {
+          assert.strictEqual(
+            err.response.status,
+            400,
+            `We did not get the expected status code, we got: ${err} for request ${invalidKeyRequest}`
+          );
+        } else {
+          assert.fail(
+            `Failed to get an error on this request: ${invalidKeyRequest}`
+          );
+        }
+      }
+    }
+  });
+
+  it("Should fail to update using patch verb if entity does not exist, @loki", async () => {
+    const patchTable = getUniqueName("patch");
+    const body = JSON.stringify({
+      TableName: patchTable
+    });
+    const createTableHeaders = {
+      "Content-Type": "application/json",
+      Accept: "application/json;odata=nometadata"
+    };
+    const createTableResult = await postToAzurite(
+      "Tables",
+      body,
+      createTableHeaders
+    );
+    assert.strictEqual(createTableResult.status, 201);
+
+    try {
+      const patchRequestResult = await patchToAzurite(
+        `${patchTable}(PartitionKey='9b0afb2e-3be7-4b95-9ce1-45e9a410cc19',RowKey='a')`,
+        '{"PartitionKey":"9b0afb2e-3be7-4b95-9ce1-45e9a410cc19","RowKey":"a"}',
+        {
+          "If-Match": "*",
+          "Content-Type": "application/json",
+          version: "",
+          "x-ms-client-request-id": "1",
+          DataServiceVersion: "3"
+        }
+      );
+      assert.strictEqual(patchRequestResult.status, 404);
+      // we expect this to fail, as our batch request specifies the etag
+      // https://docs.microsoft.com/en-us/rest/api/storageservices/merge-entity
+    } catch (err: any) {
+      assert.notStrictEqual(
+        err.response,
+        undefined,
+        "Axios error response state invalid"
+      );
+      assert.strictEqual(
+        err.response.status,
+        404,
+        "We did not get the expected failure."
+      );
+    }
   });
 });

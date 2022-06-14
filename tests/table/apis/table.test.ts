@@ -2,6 +2,7 @@ import * as assert from "assert";
 import * as Azure from "azure-storage";
 
 import { configLogger } from "../../../src/common/Logger";
+import StorageError from "../../../src/table/errors/StorageError";
 import TableServer from "../../../src/table/TableServer";
 import {
   HeaderConstants,
@@ -19,7 +20,7 @@ import {
   PORT,
   createConnectionStringForTest,
   createTableServerForTest
-} from "./table.entity.test.utils";
+} from "../utils/table.entity.test.utils";
 
 // Set true to enable debug log
 configLogger(false);
@@ -289,70 +290,76 @@ describe("table APIs test", () => {
   });
 
   it("SetAccessPolicy should work @loki", (done) => {
-
     const tableAcl = {
       "MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=": {
         Permissions: "raud",
         Expiry: new Date("2018-12-31T11:22:33.4567890Z"),
         Start: new Date("2017-12-31T11:22:33.4567890Z")
       },
-      "policy2": {
+      policy2: {
         Permissions: "a",
         Expiry: new Date("2030-11-31T11:22:33.4567890Z"),
         Start: new Date("2017-12-31T11:22:33.4567890Z")
       }
     };
-
-    tableService.createTable(tableName + "setACL", (error) => {
+    const aclTableName: string = tableName + "setAcl";
+    tableService.createTable(aclTableName, (error, result, response) => {
       if (error) {
-        assert.ifError(error);
+        const storageErr = error as StorageError;
+        assert.strictEqual(storageErr.statusCode, 409, "TableDidNotExist");
       }
 
       // a random id used to test whether response returns the client id sent in request
       const setClientRequestId = "b86e2b01-a7b5-4df2-b190-205a0c24bd36";
 
-      // tslint:disable-next-line: no-shadowed-variable
-      tableService.setTableAcl(tableName + "setACL", tableAcl, {clientRequestId: setClientRequestId}, (error, result, response) => {
-        if (error) {
-          assert.ifError(error);
-        }
-        if (response.headers) {
-          assert.strictEqual(
-            response.headers["x-ms-client-request-id"],
-            setClientRequestId
-          );
-        }
-
-        // tslint:disable-next-line: no-shadowed-variable
-        tableService.getTableAcl(tableName + "setACL", {clientRequestId: setClientRequestId}, (error, result, response) => {
-          if (error) {
-            assert.ifError(error);
+      tableService.setTableAcl(
+        aclTableName,
+        tableAcl,
+        { clientRequestId: setClientRequestId },
+        (error2, result2, response2) => {
+          if (error2) {
+            assert.ifError(error2);
           }
-
-          if (response.headers) {
+          if (response2.headers) {
             assert.strictEqual(
-              response.headers["x-ms-client-request-id"],
+              response2.headers["x-ms-client-request-id"],
               setClientRequestId
             );
           }
 
-          assert.deepStrictEqual(result.signedIdentifiers, tableAcl);
+          // tslint:disable-next-line: no-shadowed-variable
+          tableService.getTableAcl(
+            aclTableName,
+            { clientRequestId: setClientRequestId },
+            (error3, result3, response3) => {
+              if (error3) {
+                assert.ifError(error3);
+              }
 
-          done();
-        });
-      });
+              if (response3.headers) {
+                assert.strictEqual(
+                  response3.headers["x-ms-client-request-id"],
+                  setClientRequestId
+                );
+              }
+
+              assert.deepStrictEqual(result3.signedIdentifiers, tableAcl);
+              done();
+            }
+          );
+        }
+      );
     });
   });
 
   it("setAccessPolicy negative @loki", (done) => {
-
     const tableAcl = {
       "MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=": {
         Permissions: "rwdl",
         Expiry: new Date("2018-12-31T11:22:33.4567890Z"),
         Start: new Date("2017-12-31T11:22:33.4567890Z")
       },
-      "policy2": {
+      policy2: {
         Permissions: "a",
         Expiry: new Date("2030-11-31T11:22:33.4567890Z"),
         Start: new Date("2017-12-31T11:22:33.4567890Z")
@@ -369,6 +376,64 @@ describe("table APIs test", () => {
         assert.ok(error);
         done();
       });
+    });
+  });
+
+  it("should respond to get table properties @loki", (done) => {
+    tableName = getUniqueName("getProperties");
+    tableService.createTable(tableName, (error) => {
+      if (error) {
+        assert.ifError(error);
+      }
+      tableService.getServiceProperties((getPropsError, getPropsResult) => {
+        if (getPropsError) {
+          assert.ifError(getPropsError);
+        }
+        assert.strictEqual(
+          getPropsResult.Logging?.Version,
+          "1.0",
+          `value "${getPropsResult.Logging?.Version}" is not the expected MetaData for Logging Version`
+        );
+        done();
+      });
+    });
+  });
+
+  it("should delete a table using case insensitive logic, @loki", (done) => {
+    tableName = getUniqueName("caseInsensitive");
+    tableService.createTable(tableName, (error) => {
+      if (error) {
+        assert.ifError(error);
+      }
+      tableService.deleteTable(tableName.toUpperCase(), (err, res) => {
+        assert.ifError(err);
+        done();
+      });
+    });
+  });
+
+  it("should preserve casing on table names, @loki", (done) => {
+    tableName = getUniqueName("myTable");
+    tableService.createTable(tableName, (createError) => {
+      if (createError) {
+        assert.ifError(createError);
+      }
+      tableService.listTablesSegmentedWithPrefix(
+        "myTable",
+        null as any,
+        { maxResults: 10 },
+        (error: any, result: any, response: any) => {
+          assert.strictEqual(error, null);
+          const validResult: boolean = result.entries.length > 0;
+          assert.strictEqual(
+            validResult,
+            true,
+            "We did not find the expected table!"
+          );
+          assert.notStrictEqual(response, null);
+          done();
+        }
+      );
     });
   });
 });

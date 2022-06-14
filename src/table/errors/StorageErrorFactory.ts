@@ -371,4 +371,37 @@ export default class StorageErrorFactory {
       context
     );
   }
+
+  public static getNotImplementedError(context: Context): StorageError {
+    return new StorageError(
+      501,
+      "NotImplemented",
+      "The requested operation is not implemented on the specified resource.",
+      context.contextID || defaultID,
+      undefined,
+      context
+    );
+  }
+
+  public static getPropertyValueTooLargeError(context: Context): StorageError {
+    return new StorageError(
+      400,
+      "PropertyValueTooLarge",
+      "The property value exceeds the maximum allowed size (64KB). If the property value is a string, it is UTF-16 encoded and the maximum number of characters should be 32K or less.",
+      context.contextID || defaultID,
+      undefined,
+      context
+    );
+  }
+
+  public static getRequestBodyTooLarge(context: Context): StorageError {
+    return new StorageError(
+      413,
+      "RequestBodyTooLarge",
+      `The request body is too large and exceeds the maximum permissible limit.`,
+      context.contextID || defaultID,
+      undefined,
+      context
+    );
+  }
 }

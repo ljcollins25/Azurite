@@ -9,7 +9,7 @@
 
 | Version                                                            | Azure Storage API Version | Service Support                | Description                                       | Reference Links                                                                                                                                                                                                         |
 | ------------------------------------------------------------------ | ------------------------- | ------------------------------ | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 3.15.0                                                             | 2021-02-12                | Blob, Queue and Table(preview) | Azurite V3 based on TypeScript & New Architecture | [NPM](https://www.npmjs.com/package/azurite) - [Docker](https://hub.docker.com/_/microsoft-azure-storage-azurite) - [Visual Studio Code Extension](https://marketplace.visualstudio.com/items?itemName=Azurite.azurite) |
+| 3.17.1                                                             | 2021-06-08                | Blob, Queue and Table(preview) | Azurite V3 based on TypeScript & New Architecture | [NPM](https://www.npmjs.com/package/azurite) - [Docker](https://hub.docker.com/_/microsoft-azure-storage-azurite) - [Visual Studio Code Extension](https://marketplace.visualstudio.com/items?itemName=Azurite.azurite) |
 | [Legacy (v2)](https://github.com/Azure/Azurite/tree/legacy-master) | 2016-05-31                | Blob, Queue and Table          | Legacy Azurite V2                                 | [NPM](https://www.npmjs.com/package/azurite)                                                                                                                                                                            |
 
 - [Azurite V3](#azurite-v3)
@@ -75,19 +75,19 @@ Compared to V2, Azurite V3 implements a new architecture leveraging code generat
 
 ## Features & Key Changes in Azurite V3
 
-- Blob storage features align with Azure Storage API version 2021-02-12 (Refer to support matrix section below)
+- Blob storage features align with Azure Storage API version 2021-06-08 (Refer to support matrix section below)
   - SharedKey/Account SAS/Service SAS/Public Access Authentications/OAuth
   - Get/Set Blob Service Properties
   - Create/List/Delete Containers
   - Create/Read/List/Update/Delete Block Blobs
   - Create/Read/List/Update/Delete Page Blobs
-- Queue storage features align with Azure Storage API version 2021-02-12 (Refer to support matrix section below)
+- Queue storage features align with Azure Storage API version 2021-06-08 (Refer to support matrix section below)
   - SharedKey/Account SAS/Service SAS/OAuth
   - Get/Set Queue Service Properties
   - Preflight Request
   - Create/List/Delete Queues
   - Put/Get/Peek/Updata/Deleta/Clear Messages
-- Table storage features align with Azure Storage API version 2021-02-12 (Refer to support matrix section below)
+- Table storage features align with Azure Storage API version 2021-06-08 (Refer to support matrix section below)
   - SharedKey/Account SAS/Service SAS/OAuth
   - Create/List/Delete Tables
   - Insert/Update/Query/Delete Table Entities
@@ -117,7 +117,8 @@ azurite
 
 ### NPM
 
-In order to run Azurite V3 you need Node.js >= 8.0 installed on your system. Azurite works cross-platform on Windows, Linux, and OS X.
+In order to run Azurite V3 you need Node.js installed on your system. Azurite works cross-platform on Windows, Linux, and OS X.
+Azurite is compatible with the current Node.Js LTS Versions in support.
 
 After installation you can install Azurite simply with npm which is the Node.js package management tool included with every Node.js installation.
 
@@ -632,7 +633,7 @@ UseDevelopmentStorage=true;
 The full HTTPS connection string is:
 
 ```bash
-DefaultEndpointsProtocol=https;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=https://127.0.0.1:10000/devstoreaccount1;QueueEndpoint=https://127.0.0.1:10001/devstoreaccount1;
+DefaultEndpointsProtocol=https;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=https://127.0.0.1:10000/devstoreaccount1;QueueEndpoint=https://127.0.0.1:10001/devstoreaccount1;TableEndpoint=https://127.0.0.1:10002/devstoreaccount1
 ```
 
 To use the Blob service only, the HTTPS connection string is:
@@ -883,7 +884,7 @@ Legacy Azurite V2 supports Azure Storage Blob, Queue and Table services.
 Azurite V3 currently only supports Azure Storage blob service. Queue service is supported after V3.2.0-preview.
 Table service support is currently under discussion.
 
-Azurite V3 supports features from Azure Storage API version 2021-02-12, and will maintain parity with the latest API versions, in a more frequent update frequency than legacy Azurite V2.
+Azurite V3 supports features from Azure Storage API version 2021-06-08, and will maintain parity with the latest API versions, in a more frequent update frequency than legacy Azurite V2.
 
 ## TypeScript Server Code Generator
 
@@ -894,7 +895,7 @@ All the generated code is kept in `generated` folder, including the generated mi
 
 ## Support Matrix
 
-Latest release targets **2021-02-12** API version **blob** service.
+Latest release targets **2021-06-08** API version **blob** service.
 
 Detailed support matrix:
 
@@ -952,8 +953,9 @@ Detailed support matrix:
   - Version Level Worm
   - Sync copy blob by access source with oauth
   - Encryption Scope
+  - Get Page Ranges Continuation Token
 
-Latest version supports for **2021-02-12** API version **queue** service.
+Latest version supports for **2021-06-08** API version **queue** service.
 Detailed support matrix:
 
 - Supported Vertical Features
@@ -983,7 +985,7 @@ Detailed support matrix:
   - SharedKey Lite
   - Delegation SAS
 
-Latest version supports for **2021-02-12** API version **table** service (preview).
+Latest version supports for **2021-06-08** API version **table** service (preview).
 Detailed support matrix:
 
 - Supported Vertical Features

@@ -1,45 +1,32 @@
 // run "EXE Mocha TS File - Loki" in VS Code to run this test
-import * as assert from "assert";
-import * as Azure from "azure-storage";
-import { execFile } from "child_process";
-import find from "find-process";
+import * as assert from 'assert';
+import * as Azure from 'azure-storage';
+import { execFile } from 'child_process';
+import find from 'find-process';
 
 import {
-  BlobServiceClient,
-  newPipeline as blobNewPipeline,
+  BlobServiceClient, newPipeline as blobNewPipeline,
   StorageSharedKeyCredential as blobStorageSharedKeyCredential
-} from "@azure/storage-blob";
+} from '@azure/storage-blob';
 import {
-  newPipeline as queueNewPipeline,
-  QueueClient,
-  QueueServiceClient,
+  newPipeline as queueNewPipeline, QueueClient, QueueServiceClient,
   StorageSharedKeyCredential as queueStorageSharedKeyCredential
-} from "@azure/storage-queue";
+} from '@azure/storage-queue';
 
-import { configLogger } from "../src/common/Logger";
+import { configLogger } from '../src/common/Logger';
+import { HeaderConstants, TABLE_API_VERSION } from '../src/table/utils/constants';
+import BlobTestServerFactory from './BlobTestServerFactory';
 import {
-  HeaderConstants,
-  TABLE_API_VERSION
-} from "../src/table/utils/constants";
-import BlobTestServerFactory from "./BlobTestServerFactory";
+  createConnectionStringForTest, HOST, PORT, PROTOCOL
+} from './table/utils/table.entity.test.utils';
 import {
-  createConnectionStringForTest,
-  HOST,
-  PORT,
-  PROTOCOL
-} from "./table/utils/table.entity.test.utils";
-import {
-  bodyToString,
-  EMULATOR_ACCOUNT_KEY,
-  EMULATOR_ACCOUNT_NAME,
-  getUniqueName,
-  overrideRequest,
+  bodyToString, EMULATOR_ACCOUNT_KEY, EMULATOR_ACCOUNT_NAME, getUniqueName, overrideRequest,
   restoreBuildRequestOptions
-} from "./testutils";
+} from './testutils';
 
-// server address used for testing. Note that Azurite.exe has
-// server address of http://127.0.0.1:10000 and so on by default
-// and we need to configure them when starting azurite.exe
+// server address used for testing. Note that Azuritelinux has 
+// server address of http://127.0.0.1:10000 and so on by default 
+// and we need to configure them when starting azuritelinux
 const blobAddress = "http://127.0.0.1:11000";
 const queueAddress = "http://127.0.0.1:11001";
 const tableAddress = "http://127.0.0.1:11002";
@@ -53,7 +40,8 @@ configLogger(false);
 // Azure Storage Connection String (using SAS or Key).
 const testLocalAzuriteInstance = true;
 
-describe("exe test", () => {
+describe("linux binary test", () => {
+
   const tableService = Azure.createTableService(
     createConnectionStringForTest(testLocalAzuriteInstance)
   );
@@ -68,34 +56,19 @@ describe("exe test", () => {
   before(async () => {
     overrideRequest(requestOverride, tableService);
     tableName = getUniqueName("table");
-    const child = execFile(
-      ".\\release\\azurite.exe",
-      ["--blobPort 11000", "--queuePort 11001", "--tablePort 11002"],
-      { cwd: process.cwd(), shell: true, env: {} }
-    );
+    const child = execFile("./release/azuritelinux", ["--blobPort 11000", "--queuePort 11001", "--tablePort 11002"], { cwd: process.cwd(), shell: true, env: {} });
 
     childPid = child.pid;
 
-    const fullSuccessMessage =
-      "Azurite Blob service is starting at " +
-      blobAddress +
-      "\nAzurite Blob service is successfully listening at " +
-      blobAddress +
-      "\nAzurite Queue service is starting at " +
-      queueAddress +
-      "\nAzurite Queue service is successfully listening at " +
-      queueAddress +
-      "\nAzurite Table service is starting at " +
-      tableAddress +
-      "\nAzurite Table service is successfully listening at " +
-      tableAddress +
-      "\n";
+    const fullSuccessMessage = "Azurite Blob service is starting at " + blobAddress + "\nAzurite Blob service is successfully listening at " + blobAddress +
+      "\nAzurite Queue service is starting at " + queueAddress + "\nAzurite Queue service is successfully listening at " + queueAddress +
+      "\nAzurite Table service is starting at " + tableAddress + "\nAzurite Table service is successfully listening at " + tableAddress + "\n";
     let messageReceived: string = "";
 
     function stdoutOn() {
-      return new Promise((resolve) => {
+      return new Promise(resolve => {
         // exclamation mark suppresses the TS error that "child.stdout is possibly null"
-        child.stdout!.on("data", function (data: any) {
+        child.stdout!.on('data', function (data: any) {
           messageReceived += data.toString();
           if (messageReceived == fullSuccessMessage) {
             resolve("resolveMessage");
@@ -110,12 +83,12 @@ describe("exe test", () => {
   after(async () => {
     // TO DO
     // Currently, the mocha test does not quit unless "--exit" is added to the mocha command
-    // The current fix is to have "--exit" added but the issue causing mocha to be unable to
+    // The current fix is to have "--exit" added but the issue causing mocha to be unable to 
     // quit has not been identified
     restoreBuildRequestOptions(tableService);
     tableService.removeAllListeners();
 
-    await find("name", "azurite.exe", true).then((list: any) => {
+    await find('name', 'azuritelinux', true).then((list: any) => {
       process.kill(list[0].pid);
     });
 
@@ -158,23 +131,20 @@ describe("exe test", () => {
         accept: "application/json;odata=minimalmetadata"
       };
 
-      tableService.listTablesSegmented(
-        null as any,
-        (error, result, response) => {
-          if (!error) {
-            assert.strictEqual(response.statusCode, 200);
-            const headers = response.headers!;
-            assert.strictEqual(headers["x-ms-version"], TABLE_API_VERSION);
-            const bodies = response.body! as any;
-            assert.deepStrictEqual(
-              bodies["odata.metadata"],
-              `${PROTOCOL}://${HOST}:${PORT}/${EMULATOR_ACCOUNT_NAME}/$metadata#Tables`
-            );
-            assert.ok(bodies.value[0].TableName);
-          }
-          done();
+      tableService.listTablesSegmented(null as any, (error, result, response) => {
+        if (!error) {
+          assert.strictEqual(response.statusCode, 200);
+          const headers = response.headers!;
+          assert.strictEqual(headers["x-ms-version"], TABLE_API_VERSION);
+          const bodies = response.body! as any;
+          assert.deepStrictEqual(
+            bodies["odata.metadata"],
+            `${PROTOCOL}://${HOST}:${PORT}/${EMULATOR_ACCOUNT_NAME}/$metadata#Tables`
+          );
+          assert.ok(bodies.value[0].TableName);
         }
-      );
+        done();
+      });
     });
 
     it("deleteTable that exists, @loki", (done) => {
@@ -187,18 +157,15 @@ describe("exe test", () => {
 
       tableService.createTable(tableToDelete, (error, result, response) => {
         if (!error) {
-          tableService.deleteTable(
-            tableToDelete,
-            (deleteError, deleteResult) => {
-              if (!deleteError) {
-                // no body expected, we expect 204 no content on successful deletion
-                assert.strictEqual(deleteResult.statusCode, 204);
-              } else {
-                assert.ifError(deleteError);
-              }
-              done();
+          tableService.deleteTable(tableToDelete, (deleteError, deleteResult) => {
+            if (!deleteError) {
+              // no body expected, we expect 204 no content on successful deletion
+              assert.strictEqual(deleteResult.statusCode, 204);
+            } else {
+              assert.ifError(deleteError);
             }
-          );
+            done();
+          });
         } else {
           assert.fail("Test failed to create the table");
           done();
@@ -272,10 +239,7 @@ describe("exe test", () => {
     });
     it("download with with default parameters @loki @sql", async () => {
       const result = await blobClient.download(0);
-      assert.deepStrictEqual(
-        await bodyToString(result, content.length),
-        content
-      );
+      assert.deepStrictEqual(await bodyToString(result, content.length), content);
       assert.equal(result.contentRange, undefined);
       assert.equal(
         result._response.request.headers.get("x-ms-client-request-id"),
@@ -293,10 +257,7 @@ describe("exe test", () => {
           ifUnmodifiedSince: new Date("2188/01/01")
         }
       });
-      assert.deepStrictEqual(
-        await bodyToString(result, content.length),
-        content
-      );
+      assert.deepStrictEqual(await bodyToString(result, content.length), content);
       assert.equal(result.contentRange, undefined);
       assert.equal(
         result._response.request.headers.get("x-ms-client-request-id"),
@@ -400,3 +361,4 @@ describe("exe test", () => {
     });
   });
 });
+

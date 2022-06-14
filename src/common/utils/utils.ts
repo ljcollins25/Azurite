@@ -60,15 +60,6 @@ export function newEtag(): string {
   );
 }
 
-export function newTableEntityEtag(startTime: Date): string {
-  // Etag as returned by Table Storage should match W/"datetime'<ISO8601datetime>'"
-  return (
-    "W/\"datetime'" +
-    encodeURIComponent(truncatedISO8061Date(startTime, true)) +
-    "'\""
-  );
-}
-
 /**
  * Generates a hash signature for an HTTP request or for a SAS.
  *
@@ -93,11 +84,24 @@ export function computeHMACSHA256(stringToSign: string, key: Buffer): string {
  */
 export function truncatedISO8061Date(
   date: Date,
-  withMilliseconds: boolean = true
+  withMilliseconds: boolean = true,
+  hrtimePrecision: boolean = false
 ): string {
   // Date.toISOString() will return like "2018-10-29T06:34:36.139Z"
   const dateString = date.toISOString();
 
+  // some clients are very fast, and require more than ms precision available in JS
+  // This is an approximation based on the hrtime function in nodejs.
+  // The nanosecond value is appended to the millisecond value from the datetime
+  // object which gives us a good enough difference in the case of faster high
+  // volume transactions
+  if (hrtimePrecision) {
+    return (
+      dateString.substring(0, dateString.length - 1) +
+      process.hrtime()[1].toString().padStart(4, "0").slice(0, 3) +
+      "Z"
+    );
+  }
   return withMilliseconds
     ? dateString.substring(0, dateString.length - 1) + "0000" + "Z"
     : dateString.substring(0, dateString.length - 5) + "Z";
@@ -159,19 +163,4 @@ export async function getMD5FromStream(
         reject(err);
       });
   });
-}
-
-/**
- * Checks if an eTag is valid
- *
- * @export
- * @param {string} etag
- * @return {*}  {boolean}
- */
-export function checkEtagIsInvalidFormat(etag: string): boolean {
-  // Etag should match ^W\/"datetime'\d{4}-\d{2}-\d{2}T\d{2}%3A\d{2}%3A\d{2}.\d{7}Z'"$
-  const match = etag.match(
-    /^W\/"datetime'\d{4}-\d{2}-\d{2}T\d{2}%3A\d{2}%3A\d{2}.\d{7}Z'"$/
-  );
-  return match === null;
 }

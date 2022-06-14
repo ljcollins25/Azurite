@@ -11,14 +11,12 @@ trigger:
   - dev
 
 jobs:
-  - job: blobtestlinux
-    displayName: Blob Test Linux
+  - job: blobtestubuntu20_04
+    displayName: Blob Test Linux Ubuntu 20.04 LTS
     pool:
       vmImage: "ubuntu-latest"
     strategy:
       matrix:
-        node_8_x:
-          node_version: 8.x
         node_10_x:
           node_version: 10.x
         node_12_x:
@@ -39,15 +37,40 @@ jobs:
         workingDirectory: "./"
         displayName: "npm run test:blob"
         env: {}
+        
+  - job: blobtestubuntu18_04
+    displayName: Blob Test Linux Ubuntu 18.04
+    pool:
+      vmImage: "ubuntu-latest"
+    strategy:
+      matrix:
+        node_10_x:
+          node_version: 10.x
+        node_12_x:
+          node_version: 12.x
+    steps:
+      - task: NodeTool@0
+        inputs:
+          versionSpec: "$(node_version)"
+        displayName: "Install Node.js"
+  
+      - script: |
+          npm ci
+        workingDirectory: "./"
+        displayName: "npm ci"
+  
+      - script: |
+          npm run test:blob
+        workingDirectory: "./"
+        displayName: "npm run test:blob"
+        env: {}
 
   - job: blobtestwin
     displayName: Blob Test Windows
     pool:
-      vmImage: "vs2017-win2016"
+      vmImage: "windows-2022"
     strategy:
       matrix:
-        node_8_x:
-          node_version: 8.x
         node_10_x:
           node_version: 10.x
         node_12_x:
@@ -75,8 +98,6 @@ jobs:
       vmImage: "macOS-10.15"
     strategy:
       matrix:
-        node_8_x:
-          node_version: 8.x
         node_10_x:
           node_version: 10.x
         node_12_x:
@@ -104,8 +125,6 @@ jobs:
       vmImage: "ubuntu-latest"
     strategy:
       matrix:
-        node_8_x:
-          node_version: 8.x
         node_10_x:
           node_version: 10.x
         node_12_x:
@@ -141,8 +160,6 @@ jobs:
       vmImage: "ubuntu-latest"
     strategy:
       matrix:
-        node_8_x:
-          node_version: 8.x
         node_10_x:
           node_version: 10.x
         node_12_x:
@@ -167,11 +184,9 @@ jobs:
   - job: queuetestwin
     displayName: Queue Test Windows
     pool:
-      vmImage: "vs2017-win2016"
+      vmImage: "windows-2022"
     strategy:
       matrix:
-        node_8_x:
-          node_version: 8.x
         node_10_x:
           node_version: 10.x
         node_12_x:
@@ -199,8 +214,6 @@ jobs:
       vmImage: "macOS-10.15"
     strategy:
       matrix:
-        node_8_x:
-          node_version: 8.x
         node_10_x:
           node_version: 10.x
         node_12_x:
@@ -228,12 +241,11 @@ jobs:
       vmImage: "ubuntu-latest"
     strategy:
       matrix:
-        node_8_x:
-          node_version: 8.x
-        node_10_x:
-          node_version: 10.x
-        node_12_x:
-          node_version: 12.x
+        # Table tests no longer suport older node versions
+        node_14_x:
+          node_version: 14.x
+        node_16_x:
+          node_version: 16.x
     steps:
       - task: NodeTool@0
         inputs:
@@ -254,15 +266,14 @@ jobs:
   - job: tabletestwin
     displayName: Table Test Windows
     pool:
-      vmImage: "vs2017-win2016"
+      vmImage: "windows-2022"
     strategy:
       matrix:
-        node_8_x:
-          node_version: 8.x
-        node_10_x:
-          node_version: 10.x
-        node_12_x:
-          node_version: 12.x
+        # Table tests no longer suport older node versions
+        node_14_x:
+          node_version: 14.x
+        node_16_x:
+          node_version: 16.x
     steps:
       - task: NodeTool@0
         inputs:
@@ -286,12 +297,11 @@ jobs:
       vmImage: "macOS-10.15"
     strategy:
       matrix:
-        node_8_x:
-          node_version: 8.x
-        node_10_x:
-          node_version: 10.x
-        node_12_x:
-          node_version: 12.x
+        # Table tests no longer suport older node versions
+        node_14_x:
+          node_version: 14.x
+        node_16_x:
+          node_version: 16.x
     steps:
       - task: NodeTool@0
         inputs:
@@ -315,12 +325,11 @@ jobs:
       vmImage: "ubuntu-latest"
     strategy:
       matrix:
-        node_8_x:
-          node_version: 8.x
-        node_10_x:
-          node_version: 10.x
-        node_12_x:
-          node_version: 12.x
+        # Table tests no longer suport older node versions
+        node_14_x:
+          node_version: 14.x
+        node_16_x:
+          node_version: 16.x
     steps:
       - task: NodeTool@0
         inputs:
@@ -361,15 +370,14 @@ jobs:
   - job: azuritenodejswin
     displayName: Azurite Windows
     pool:
-      vmImage: "vs2017-win2016"
+      vmImage: "windows-2022"
     strategy:
       matrix:
-        node_8_x:
-          node_version: 8.x
-        node_10_x:
-          node_version: 10.x
-        node_12_x:
-          node_version: 12.x
+        # Table tests no longer suport older node versions
+        node_14_x:
+          node_version: 14.x
+        node_16_x:
+          node_version: 16.x
     steps:
       - task: NodeTool@0
         inputs:
@@ -413,12 +421,11 @@ jobs:
       vmImage: "macOS-10.15"
     strategy:
       matrix:
-        node_8_x:
-          node_version: 8.x
-        node_10_x:
-          node_version: 10.x
-        node_12_x:
-          node_version: 12.x
+        # Table tests no longer suport node_8_x
+        node_14_x:
+          node_version: 14.x
+        node_16_x:
+          node_version: 16.x
     steps:
       - task: NodeTool@0
         inputs:
@@ -493,7 +500,44 @@ jobs:
   - job: exetest
     displayName: .exe Test Windows
     pool:
-      vmImage: "vs2017-win2016"
+      vmImage: "windows-2022"
+    strategy:
+      matrix:
+        # one of the node modules use a try/catch syntax not supported by node 8
+        # node_8_x:
+        #   node_version: 8.x
+        # our .exe build program is currently incompatible with node 10
+        # node_10_x:
+        #   node_version: 10.x
+        node_12_x:
+          node_version: 14.x
+    steps:
+      - task: NodeTool@0
+        inputs:
+          versionSpec: "$(node_version)"
+        displayName: "Install Node.js"
+
+      - script: |
+          npm ci
+        workingDirectory: "./"
+        displayName: "npm ci"
+
+      - script: |
+          npm run build:exe
+        workingDirectory: "./"
+        displayName: "npm run build:exe"
+        env: {}
+
+      - script: |
+          npm run test:exe
+        workingDirectory: "./"
+        displayName: "npm run test:exe"
+        env: {}
+
+  - job: linuxTest
+    displayName: binary Test Linux
+    pool:
+      vmImage: "ubuntu-latest"
     strategy:
       matrix:
         # one of the node modules use a try/catch syntax not supported by node 8
@@ -516,13 +560,13 @@ jobs:
         displayName: "npm ci"
 
       - script: |
-          npm run build:exe
+          npm run build:linux
         workingDirectory: "./"
-        displayName: "npm run build:exe"
+        displayName: "npm run build:linux"
         env: {}
 
       - script: |
-          npm run test:exe
+          npm run test:linux
         workingDirectory: "./"
-        displayName: "npm run test:exe"
+        displayName: "npm run test:linux"
         env: {}

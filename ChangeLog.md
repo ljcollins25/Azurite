@@ -4,19 +4,79 @@
 
 ## Upcoming Release
 
-General:
-
-- Ensure the storage location exists, and allow relative paths in the VSCode extension settings that are resolved based on the workspace folder.
-
-Queue:
-
-- Fixed issue that queue list result is not in alphabetical order.
-
 Blob:
 
 - Fixed a bug where stageBlock with a valid lease fails on a blob with a snapshot. 
 
+Table:
+
+- Reject table batch request bodies exceeding 4MB.
+- Fix binary table property validation to be 64K bytes not 32K characters.
+- Does not error when table created is a substring of another table.
+- Correctly responds with status 404 on patch with non-existant entity.
+
+## 2022.04 Version 3.17.1
+
+Table:
+
+- Removes commas from RegEx checking key validity.
+- Updated property check to handle null property and added regression test.
+
+## 2022.04 Version 3.17.0
+
+General:
+
+- Bump up service API version to 2021-06-08
+- Fixed SAS validation failure for version 2020-12-06 and later
+
+Table:
+
+- Fixed empty partition key and row key handling in batch write operations.
+- Fixed batch reponse for Go SDK, includes additional CRLF on closure of changesetresponse section.
+- Removed query strings from Location and DataServiceId batch response headers.
+- Modified the deserialization of batch request for case that a raw / not url encoded % is present in the body.
+- Added additional tests and checks for table names on creation.
+- Added more granularity and precision to etags.
+- Added checks for invalid characters in partition and row keys.
+- Rejects entities with string props longer than 32K chars.
+- Added check for body length greater than 4MB.
+
+## 2022.02 Version 3.16.0
+
+General:
+
+- Bump up service API version to 2021-04-10
+- Ensure the storage location exists, and allow relative paths in the VSCode extension settings that are resolved based on the workspace folder.
+- Update Azure CI to use latest image of windows due to deprecation of `vs2017-win2016` image
+
+Blob:
+
+- Fixed issue that startCopyFromURL and copyFromURL API not respect `--disableProductStyleUrl` parameter in parse source Uri.
+
+Queue:
+
+- Fixed issue that queue list result is not in alphabetical order.
+- Fixed class name of QueueSASAuthenticator mistakenly named BlobSASAuthenticator.
+
 ## 2021.10 Version 3.15.0
+=======
+Table:
+
+- Fixed issues with deleting entities using empty string for RowKey.
+- Fixed HTTP 500 causes by continuation token containing non-ASCII. Values are now encoded with base64.
+- Fixed a table sas test case failure.
+- Added support for batch transaction rollback on error in batch.
+- Fixes issues with Whitespacing in Table Queries
+- Fixes issue with Edm Type Validation
+- Fixes issue when trying to add entity with Boolean or Int32
+- Failed table transaction correctly returns 409 Status code
+- Refactors tests for Table APIs
+- Adds several tests for Table APIs
+- Fixes issues for upsert and merge with etag matching
+- Allow any valid weak etag even though we know it will fail with a 412
+- Added check for table query validity
+
+## 2021.12 Version 3.15.0
 
 General:
 
@@ -27,13 +87,6 @@ General:
 Blob:
 
 - Fixed start copy blob fail with `x-ms-access-tier` header and from Archive blob in same account.
-- Fixed issue that startCopyFromURL and copyFromURL API not respect `--disableProductStyleUrl` parameter in parse source Uri.
-
-Table:
-
-- Fixes issues with deleting entities using empty string for RowKey.
-- Fixes HTTP 500 causes by continuation token containing non-ASCII. Values are now encoded with base64.
-- Fixed a table sas test case failure.
 
 ## 2021.10 Version 3.14.3
 
