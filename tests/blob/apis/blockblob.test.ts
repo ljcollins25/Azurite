@@ -520,7 +520,7 @@ describe("BlockBlobAPIs", () => {
     await blockBlobClient.commitBlockList([base64encode("1")]);
 
     let blobLeaseClient = await blobClient.getBlobLeaseClient();
-    const leaseResult = blobLeaseClient.acquireLease(-1);
+    const leaseResult = await blobLeaseClient.acquireLease(-1);
     const leaseId = leaseResult.leaseId;
     assert.ok(leaseId);
 
@@ -533,7 +533,7 @@ describe("BlockBlobAPIs", () => {
     assert.equal(getResult.leaseStatus, "locked");
 
     // Attempt to stage a block using the acquired lease
-    await blockBlobClient.stageBlock(base64encode("2"), body, body.length,  {
+    await blockBlobClient.stageBlock(base64encode("2"), body, body.length, {
       conditions: { leaseId }
     });
 
