@@ -58,8 +58,6 @@ Queue:
 - Fixed issue that queue list result is not in alphabetical order.
 - Fixed class name of QueueSASAuthenticator mistakenly named BlobSASAuthenticator.
 
-## 2021.10 Version 3.15.0
-=======
 Table:
 
 - Fixed issues with deleting entities using empty string for RowKey.
