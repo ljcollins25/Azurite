@@ -1378,6 +1378,7 @@ export default class SqlBlobMetadataStore implements IBlobMetadataStore {
             accountName: block.accountName,
             containerName: block.containerName,
             blobName: block.blobName,
+            snapshot: "",
             deleting: 0
           },
           order: [["id", "ASC"]],
@@ -1418,6 +1419,7 @@ export default class SqlBlobMetadataStore implements IBlobMetadataStore {
           accountName: block.accountName,
           containerName: block.containerName,
           blobName: block.blobName,
+          snapshot: "",
           blockName: block.name,
           size: block.size,
           persistency: this.serializeModelValue(block.persistency)
