@@ -12,6 +12,10 @@ Queue:
 
 - Fixed issue that queue list result is not in alphabetical order.
 
+Blob:
+
+- Fixed a bug where stageBlock with a valid lease fails on a blob with a snapshot. 
+
 ## 2021.10 Version 3.15.0
 
 General:
