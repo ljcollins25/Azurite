@@ -541,6 +541,15 @@ OPERATION_ACCOUNT_SAS_PERMISSIONS.set(
 );
 
 OPERATION_ACCOUNT_SAS_PERMISSIONS.set(
+  Operation.BlockBlob_StageBlockFromURL,
+  new OperationAccountSASPermission(
+    AccountSASService.Blob,
+    AccountSASResourceType.Object,
+    AccountSASPermission.Write
+  )
+);
+
+OPERATION_ACCOUNT_SAS_PERMISSIONS.set(
   Operation.BlockBlob_CommitBlockList,
   new OperationAccountSASPermission(
     AccountSASService.Blob,

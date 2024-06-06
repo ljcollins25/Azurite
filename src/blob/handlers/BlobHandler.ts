@@ -1,6 +1,5 @@
 import { URLBuilder } from "@azure/ms-rest-js";
 import axios, { AxiosResponse } from "axios";
-import { URL } from "url";
 
 import IExtentStore from "../../common/persistence/IExtentStore";
 import {
@@ -31,7 +30,7 @@ import {
   getBlobTagsCount,
   validateBlobTag
 } from "../utils/utils";
-import BaseHandler from "./BaseHandler";
+import BaseBlobHandler from "./BaseBlobHandler";
 import IPageBlobRangesManager from "./IPageBlobRangesManager";
 
 /**
@@ -39,10 +38,10 @@ import IPageBlobRangesManager from "./IPageBlobRangesManager";
  *
  * @export
  * @class BlobHandler
- * @extends {BaseHandler}
+ * @extends {BaseBlobHandler}
  * @implements {IBlobHandler}
  */
-export default class BlobHandler extends BaseHandler implements IBlobHandler {
+export default class BlobHandler extends BaseBlobHandler implements IBlobHandler {
   constructor(
     metadataStore: IBlobMetadataStore,
     extentStore: IExtentStore,
@@ -702,7 +701,7 @@ export default class BlobHandler extends BaseHandler implements IBlobHandler {
     return response;
   }
 
-  private async validateCopySource(copySource: string, sourceAccount: string, context: Context): Promise<void> {
+  public async validateCopySource(copySource: string, sourceAccount: string, context: Context): Promise<void> {
     // Currently the only cross-account copy support is from/to the same Azurite instance. In either case access
     // is determined by performing a request to the copy source to see if the authentication is valid.
     const blobCtx = new BlobStorageContext(context);
@@ -1312,20 +1311,5 @@ export default class BlobHandler extends BaseHandler implements IBlobHandler {
     };
 
     return response;
-  }
-
-  private NewUriFromCopySource(copySource: string, context: Context): URL {
-    try {
-      return new URL(copySource)
-    }
-    catch
-    {
-      throw StorageErrorFactory.getInvalidHeaderValue(
-        context.contextId,
-        {
-          HeaderName: "x-ms-copy-source",
-          HeaderValue: copySource
-        })
-    }
   }
 }

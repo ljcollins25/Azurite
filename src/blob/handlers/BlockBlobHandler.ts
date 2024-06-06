@@ -11,9 +11,10 @@ import * as Models from "../generated/artifacts/models";
 import Context from "../generated/Context";
 import IBlockBlobHandler from "../generated/handlers/IBlockBlobHandler";
 import { parseXML } from "../generated/utils/xml";
+import { extractStoragePartsFromPath } from "../middlewares/blobStorageContext.middleware";
 import { BlobModel, BlockModel } from "../persistence/IBlobMetadataStore";
 import { BLOB_API_VERSION } from "../utils/constants";
-import BaseHandler from "./BaseHandler";
+import BaseBlobHandler from "./BaseBlobHandler";
 import { getTagsFromString } from "../utils/utils";
 
 /**
@@ -21,11 +22,11 @@ import { getTagsFromString } from "../utils/utils";
  *
  * @export
  * @class BlockBlobHandler
- * @extends {BaseHandler}
+ * @extends {BaseBlobHandler}
  * @implements {IBlockBlobHandler}
  */
 export default class BlockBlobHandler
-  extends BaseHandler
+  extends BaseBlobHandler
   implements IBlockBlobHandler {
   public async upload(
     body: NodeJS.ReadableStream,
@@ -47,7 +48,7 @@ export default class BlockBlobHandler
       "application/octet-stream";
     const contentMD5 = context.request!.getHeader("content-md5")
       ? options.blobHTTPHeaders.blobContentMD5 ||
-        context.request!.getHeader("content-md5")
+      context.request!.getHeader("content-md5")
       : undefined;
 
     await this.metadataStore.checkContainerExist(
@@ -161,9 +162,9 @@ export default class BlockBlobHandler
   }
 
   public async putBlobFromUrl(contentLength: number, copySource: string, options: Models.BlockBlobPutBlobFromUrlOptionalParams, context: Context
-    ): Promise<Models.BlockBlobPutBlobFromUrlResponse> {
+  ): Promise<Models.BlockBlobPutBlobFromUrlResponse> {
     throw new NotImplementedError(context.contextId);
-    }
+  }
 
   public async stageBlock(
     blockId: string,
@@ -183,7 +184,7 @@ export default class BlockBlobHandler
     // options.blobHTTPHeaders = options.blobHTTPHeaders || {};
     const contentMD5 = context.request!.getHeader("content-md5")
       ? options.transactionalContentMD5 ||
-        context.request!.getHeader("content-md5")
+      context.request!.getHeader("content-md5")
       : undefined;
 
     this.validateBlockId(blockId, blobCtx);
@@ -270,7 +271,32 @@ export default class BlockBlobHandler
     options: Models.BlockBlobStageBlockFromURLOptionalParams,
     context: Context
   ): Promise<Models.BlockBlobStageBlockFromURLResponse> {
-    throw new NotImplementedError(context.contextId);
+    const blobCtx = new BlobStorageContext(context);
+
+    const url = this.NewUriFromCopySource(sourceUrl, context);
+    const [
+      sourceAccount,
+      sourceContainer,
+      sourceBlob
+    ] = extractStoragePartsFromPath(url.hostname, url.pathname, blobCtx.disableProductStyleUrl);
+
+    if (
+      sourceAccount === undefined ||
+      sourceContainer === undefined ||
+      sourceBlob === undefined
+    ) {
+      throw StorageErrorFactory.getBlobNotFound(context.contextId!);
+    }
+
+    const stream = await this.getCopySourceContent(sourceUrl, sourceAccount, context);
+
+    return await this.stageBlock(
+      blockId,
+      stream.readableLength,
+      stream,
+      options,
+      context
+    );
   }
 
   public async commitBlockList(
@@ -332,7 +358,7 @@ export default class BlockBlobHandler
       accountName,
       containerName,
       name: blobName,
-      snapshot: "",      
+      snapshot: "",
       blobTags: options.blobTagsString === undefined ? undefined : getTagsFromString(options.blobTagsString, context.contextId!),
       properties: {
         lastModified: context.startTime!,
@@ -437,16 +463,16 @@ export default class BlockBlobHandler
       (options.listType.toLowerCase() ===
         Models.BlockListType.All.toLowerCase() ||
         options.listType.toLowerCase() ===
-          Models.BlockListType.Uncommitted.toLowerCase())
+        Models.BlockListType.Uncommitted.toLowerCase())
     ) {
       response.uncommittedBlocks = res.uncommittedBlocks;
     }
     if (
       options.listType === undefined ||
       options.listType.toLowerCase() ===
-        Models.BlockListType.All.toLowerCase() ||
+      Models.BlockListType.All.toLowerCase() ||
       options.listType.toLowerCase() ===
-        Models.BlockListType.Committed.toLowerCase()
+      Models.BlockListType.Committed.toLowerCase()
     ) {
       response.committedBlocks = res.committedBlocks;
     }
